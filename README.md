@@ -9,11 +9,12 @@ Le but de ce projet est d'effectuer la prédiction de séries temporelles chaoti
 
 L'attracteur de Lorenz sera étudié, permettant d'obtenir trois séries temporelles dépendantes à l'aide d'un système d'équations différentielles non-linéaires couplées. Le système de Lorenz est:
 
-$$\begin{align}
-\frac{\text{d}x}{\text{d}t} &= \sigma(y - x)\\
-\frac{\text{d}y}{\text{d}t} &= x(\rho - z) - y\\
-\frac{\text{d}y}{\text{d}t} &= xy - \beta z
-\end{align}$$
+$$\frac{\text{d}x}{\text{d}t} = \sigma(y - x)$$
+
+$$\frac{\text{d}y}{\text{d}t} = x(\rho - z) - y$$
+
+$$\frac{\text{d}y}{\text{d}t} = xy - \beta z$$
+
 Comprendre exactement ce que $x$, $y$ et $z$ représentent n'est pas nécessaire dans ce projet. Il faut toutefois savoir que ces équations représentent un modèle simpliste de convection atmosphérique et que $\sigma$, $\rho$ et $\beta$ sont des constantes, historiquement fixées à $10$, $28$ et $\frac{8}{3}$ respectivement[^1].
 
 ## Pourquoi étudier la prédiction du chaos? Pourquoi l'apprentissage automatique?
