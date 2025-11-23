@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import reservoirpy as rpy
 import numpy as np
 
@@ -118,7 +119,14 @@ class ESN:
             preds.append(x)
         return np.array(preds)
 
-    def prediction_error(self, predictions: np.ndarray, true: np.ndarray, dimensionwise: bool = True):
+    def predict(self, start: np.ndarray, n: int):
+        return self.autonomous_prediction(start, n)
+
+    def __call__(self, *args, **kwargs):
+        return self.autonomous_prediction(*args, **kwargs)
+
+    @staticmethod
+    def prediction_error(predictions: np.ndarray, true: np.ndarray, dimensionwise: bool = False):
         """
         Méthode utilitaire permettant de calculer l'erreur de prédiction utilisant la RMSE (root mean squared error).
         :param predictions: np.ndarray. Valeurs prédites.
@@ -128,3 +136,94 @@ class ESN:
         """
         rmse = rpy.observables.rmse(true, predictions, dimensionwise)
         return rmse
+
+
+class Optim:
+# TODO: Faire une métrique custom, RMSE mais normalisée pour laisser plus d'importance au début des prédictions
+# TODO: Genre, une exponentielle décroissante.
+    def __init__(self, optim_vals, *model_args, **model_kwargs):
+
+        self.optim_vals = optim_vals
+        self.model_args = model_args
+        self.model_kwargs = model_kwargs
+
+    def _make_models(self) -> dict:
+        raise NotImplementedError("À implémenter dans les classes qui héritent.")
+
+    def optimize(self, X_fit, y_fit, predict_start, y_predict, metric: callable, fit_args: tuple = (),
+                 predict_args: tuple = (), metric_args: tuple = ()):
+        min_err = np.inf
+        best_param = None
+        models = self._make_models()
+        for m in models.keys():
+            m.fit(X_fit, y_fit, *fit_args)
+            n = len(y_predict)
+            predictions = m.predict(predict_start, n, *predict_args)
+            err = metric(predictions, y_predict, *metric_args)
+            if err < min_err:
+                best_param = models[m]
+                min_err = err
+                print(err, best_param)
+        return best_param
+
+
+class RidgeOptim(Optim):
+
+    def __init__(self, ridge_vals, *model_args, **model_kwargs):
+        super(RidgeOptim, self).__init__(ridge_vals, *model_args, **model_kwargs)
+
+    def _make_models(self) -> dict:
+        models = {ESN(*self.model_args, ridge=r, **self.model_kwargs): r for r in self.optim_vals}
+        return models
+
+
+class NUnitsOptim(Optim):
+
+    def __init__(self, nunits_vals, *model_args, **model_kwargs):
+        super(NUnitsOptim, self).__init__(nunits_vals, *model_args, **model_kwargs)
+
+    def _make_models(self) -> dict:
+        models = {ESN(*self.model_args, n_units=n, **self.model_kwargs): n for n in self.optim_vals}
+        return models
+
+
+if __name__ == '__main__':
+    from EDOs import Lorenz
+
+    tsteps = np.arange(0, 120, 0.02)
+    L = Lorenz((1, 0, 0))
+    L.resoudre_EDO(0, tsteps[-1], t_eval=tsteps)
+    x_vals = L.x_points.T  # On veut shape (t, x)
+    n_train = 5000
+    x_train = x_vals[:n_train]
+    y_train = x_vals[1:n_train + 1]
+    x_test = x_vals[n_train:]
+    y_test = x_vals[n_train:]
+    t_vals = L.t_points
+    t_test = t_vals[n_train:] - t_vals[n_train]
+
+    r = RidgeOptim([0, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1], 300, 3, 1.2, seed_W=0, seed_W_in=1)
+    best_ridge = r.optimize(x_train, y_train, x_test[0], y_test, ESN.prediction_error)
+    print(f"Ridge: {best_ridge}")
+
+    n = NUnitsOptim([300, 500, 700], n_input=3, wanted_sr=1.2, seed_W=0, seed_W_in=1, ridge=best_ridge)
+    best_n = n.optimize(x_train, y_train, x_test[0], y_test, ESN.prediction_error)
+    print(f"n_units: {best_n}")
+
+    # exit()
+
+    res = ESN(best_n, 3, 1.2, ridge=best_ridge, seed_W=42, seed_W_in=43)
+    res.fit(x_train, y_train, skip=800)
+    n_predict = len(tsteps) - n_train
+    # plt.plot(x_vals)
+    # plt.show()
+    preds = res.autonomous_prediction(x_test[0], n_predict)
+    fig, axes = plt.subplots(3, 1)
+    labels = [r"$x$", r"$y$", r"$z$"]
+    for i in range(3):
+        axes[i].plot(t_test, y_test[..., i], label="Vraies")
+        axes[i].plot(t_test, preds[..., i], label="Prédictions")
+        axes[i].set_xlabel("Temps [-]")
+        axes[i].set_ylabel(labels[i])
+        axes[i].legend()
+    plt.show()
