@@ -15,11 +15,11 @@ class EDO:
     def equations_differentielles(self, t: float, x: Iterable[float]) -> np.ndarray:
         raise NotImplementedError("À implémenter dans les sous-classes.")
 
-    def resoudre_EDO(self, t_min: float, t_max: float, nombre_t: int = None, ) -> None:
-        t_eval = None
+    def resoudre_EDO(self, t_min: float, t_max: float, nombre_t: int = None, t_eval: np.ndarray = None) -> None:
+        _t_eval = t_eval
         if nombre_t is not None:
-            t_eval = np.linspace(t_min, t_max, nombre_t)
-        sol = solve_ivp(self.equations_differentielles, (t_min, t_max), self.conditions_initiales, t_eval=t_eval)
+            _t_eval = np.linspace(t_min, t_max, nombre_t)
+        sol = solve_ivp(self.equations_differentielles, (t_min, t_max), self.conditions_initiales, t_eval=_t_eval)
         self.x_points = sol.y
         self.t_points = sol.t
         status = sol.status
