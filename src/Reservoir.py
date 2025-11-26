@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import reservoirpy as rpy
 import numpy as np
+from itertools import product
 
 
 class ESN:
@@ -138,20 +139,27 @@ class ESN:
         return rmse
 
 
-class Optim:
-# TODO: Faire une métrique custom, RMSE mais normalisée pour laisser plus d'importance au début des prédictions
-# TODO: Genre, une exponentielle décroissante.
-    def __init__(self, optim_vals, *model_args, **model_kwargs):
-
-        self.optim_vals = optim_vals
+class GridOptim:
+    # TODO: Faire une métrique custom, RMSE mais normalisée pour laisser plus d'importance au début des prédictions
+    # TODO: Genre, une exponentielle décroissante.
+    def __init__(self, args_vals: dict, *model_args, **model_kwargs):
+        self.args_vals = args_vals
         self.model_args = model_args
         self.model_kwargs = model_kwargs
 
     def _make_models(self) -> dict:
-        raise NotImplementedError("À implémenter dans les classes qui héritent.")
+        keys = self.args_vals.keys()
+        values = self.args_vals.values()
+        all_combs = product(*values)
+        models = dict()
+        for c in all_combs:
+            current_kwargs = dict(zip(keys, c))
+            m = ESN(*self.model_args, **current_kwargs, **self.model_kwargs)
+            models[m] = current_kwargs
+        return models
 
     def optimize(self, X_fit, y_fit, predict_start, y_predict, metric: callable, fit_args: tuple = (),
-                 predict_args: tuple = (), metric_args: tuple = ()):
+                 predict_args: tuple = (), metric_args: tuple = ()) -> dict:
         min_err = np.inf
         best_param = None
         models = self._make_models()
@@ -163,28 +171,7 @@ class Optim:
             if err < min_err:
                 best_param = models[m]
                 min_err = err
-                print(err, best_param)
         return best_param
-
-
-class RidgeOptim(Optim):
-
-    def __init__(self, ridge_vals, *model_args, **model_kwargs):
-        super(RidgeOptim, self).__init__(ridge_vals, *model_args, **model_kwargs)
-
-    def _make_models(self) -> dict:
-        models = {ESN(*self.model_args, ridge=r, **self.model_kwargs): r for r in self.optim_vals}
-        return models
-
-
-class NUnitsOptim(Optim):
-
-    def __init__(self, nunits_vals, *model_args, **model_kwargs):
-        super(NUnitsOptim, self).__init__(nunits_vals, *model_args, **model_kwargs)
-
-    def _make_models(self) -> dict:
-        models = {ESN(*self.model_args, n_units=n, **self.model_kwargs): n for n in self.optim_vals}
-        return models
 
 
 if __name__ == '__main__':
@@ -201,18 +188,13 @@ if __name__ == '__main__':
     y_test = x_vals[n_train:]
     t_vals = L.t_points
     t_test = t_vals[n_train:] - t_vals[n_train]
+    ridge = [0, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]
+    n = [300, 500, 700]
+    gopt = GridOptim({"ridge": ridge, "n_units": n}, n_input=3, wanted_sr=1.2, seed_W=42, seed_W_in=43)
+    best = gopt.optimize(x_train, y_train, x_test[0], y_test, ESN.prediction_error)
+    print(best)
 
-    r = RidgeOptim([0, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1], 300, 3, 1.2, seed_W=0, seed_W_in=1)
-    best_ridge = r.optimize(x_train, y_train, x_test[0], y_test, ESN.prediction_error)
-    print(f"Ridge: {best_ridge}")
-
-    n = NUnitsOptim([300, 500, 700], n_input=3, wanted_sr=1.2, seed_W=0, seed_W_in=1, ridge=best_ridge)
-    best_n = n.optimize(x_train, y_train, x_test[0], y_test, ESN.prediction_error)
-    print(f"n_units: {best_n}")
-
-    # exit()
-
-    res = ESN(best_n, 3, 1.2, ridge=best_ridge, seed_W=42, seed_W_in=43)
+    res = ESN(n_input=3, wanted_sr=1.2, seed_W=42, seed_W_in=43, **best)
     res.fit(x_train, y_train, skip=800)
     n_predict = len(tsteps) - n_train
     # plt.plot(x_vals)
