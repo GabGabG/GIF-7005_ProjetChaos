@@ -6,10 +6,13 @@ from matplotlib import pyplot as plt
 from src.EDOs import Lorenz
 from src.edo_data_structures import EdoData, EdoDataset, normalisation, denormalisation
 from src.models.lstm import LSTM
+from src.ChaosCharacterization import TentMap
 
 
 torch.manual_seed(42)
 np.random.seed(42)
+
+plt.rcParams.update({'font.size': 22})
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -63,7 +66,7 @@ if __name__ == "__main__":
         lr=learning_rate
     )
 
-    save_path = "results/training/lstm/"
+    save_path = "results/lstm/"
     os.makedirs(save_path, exist_ok=True)
     model.save(f"{save_path}{save_name}_model.pth")
     print(f"Model sauvegarder : {save_path}{save_name}_model.pth")
@@ -81,7 +84,7 @@ if __name__ == "__main__":
     plt.show()
 
     # Évaluation autonome sur la suite de la trajectoire
-    raw = data_generator.evaluate(0.0, 120.0)[0].cpu()  # (T, 3)
+    raw = data_generator.evaluate(0.0, 200.0)[0].cpu()  # (T, 3)
     split_idx = 5000
     
     # Utiliser les paramètres de normalisation du dataset d'entraînement
@@ -105,19 +108,22 @@ if __name__ == "__main__":
         x_test = x_test.numpy()
         preds = preds.astype(np.float32)
 
-    # Visualisation des prédictions
-    rmse = np.sqrt(np.mean((preds - x_test) ** 2))
-    rmse_dim = np.sqrt(np.mean((preds - x_test) ** 2, axis=0))
+    n_plot = 1000
+    t_plot = np.linspace(0, 20, n_plot)
+    rmse = np.sqrt(np.mean((preds - x_test)[:n_plot] ** 2))
+    rmse_dim = np.sqrt(np.mean((preds - x_test)[:n_plot] ** 2, axis=0))
     
-    fig, axes = plt.subplots(3, 1, figsize=(12, 9))
+    fig, axes = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
     dims = ['X', 'Y', 'Z']
-    n_plot = min(2000, len(x_test))
+
     for i, (ax, dim) in enumerate(zip(axes, dims)):
-        ax.plot(x_test[:n_plot, i], label='True', linewidth=2, alpha=0.8)
-        ax.plot(preds[:n_plot, i], label='Pred', linewidth=1.5, alpha=0.7)
+        ax.plot(t_plot, x_test[:n_plot, i], label='True', linewidth=2, alpha=0.8)
+        ax.plot(t_plot, preds[:n_plot, i], label='Pred', linewidth=1.5, alpha=0.7)
         ax.set_ylabel(dim)
-        ax.set_xlabel('Steps')
-        ax.legend()
+        if i == 2:
+            ax.set_xlabel('Temps $t$')
+        if i == 0:
+            ax.legend(loc="upper right")
         ax.grid(True, alpha=0.3)
         ax.set_title(f'{dim} - RMSE: {rmse_dim[i]:.6f}')
     plt.tight_layout()
@@ -126,16 +132,32 @@ if __name__ == "__main__":
     print(f"Prediction RMSE: {rmse:.6f}")
 
     # Visulalisation des résidus
-    residus = (preds - x_test)*100 / x_test
-    fig, axes = plt.subplots(3, 1, figsize=(12, 9))
+    diff_abs = np.abs(preds - x_test)
+    fig, axes = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
     for i, (ax, dim) in enumerate(zip(axes, dims)):
-        ax.plot(residus[:n_plot, i], label='Residuals', color='orange', linewidth=1.5, alpha=0.7)
+        ax.plot(t_plot, diff_abs[:n_plot, i], label='Diff. absolue', color='orange', linewidth=1.5, alpha=0.7)
         ax.set_ylabel(dim)
-        ax.set_xlabel('Steps')
-        ax.legend()
+        if i == 2:
+            ax.set_xlabel('Temps $t$')
         ax.grid(True, alpha=0.3)
-        ax.set_title(f'{dim} - Residuals [%]')
+        ax.set_title(f'{dim} - Diff. absolue')
     plt.tight_layout()
     plt.savefig(f"{save_path}{save_name}_residuals.png", dpi=150)
+    plt.show()
+
+    fig, ax = plt.subplots(figsize=(9, 9))
+    tm_base = TentMap(x_test, -1)
+    tm_base.compute_tent_map(True)
+    tm_base.display_tent_map(ax, label="True")
+    tm_preds = TentMap(preds, -1)
+    tm_preds.compute_tent_map(True)
+    tm_preds.display_tent_map(ax, color="red", marker="x", label="Pred")
+    ax.set_xlabel(r"$z_n$")
+    x = min(tm_base.tent_map[0])
+    ax.axline((x, x), slope=1, color="black", ls="--", label=r"$y = x$")
+    ax.set_ylabel(r"$z_{n+1}$")
+    ax.legend()
+    plt.tight_layout()
+    fig.savefig("tent_map_lstm.png", dpi=300)
     plt.show()
     

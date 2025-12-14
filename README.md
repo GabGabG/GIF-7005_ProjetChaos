@@ -1,4 +1,4 @@
-# Projet de session, GIF-1005: Introduction à l'apprentissage automatique
+# Projet de session, GIF-4101 / GIF-7005: Introduction à l'apprentissage automatique
 ## Session automne 2025
 
 # Projet: Prédiction du chaos par apprentissage machine
@@ -24,7 +24,5 @@ L'apprentissage automatique moderne repose en grande partie sur une approche non
 
 En ayant cette mentalité, on peut s'intéresser aux systèmes chaotiques. Humainement, ces systèmes sont difficiles à interpréter et décrire, mais l'important est dans les données. En ayant le passé, on veut prédire le futur sans avoir le modèle exact; la plupart des systèmes réels ont un modèle théorique inconnu ou incomplet. Une approche basée sur les données est donc très attrayante. L'attracteur de Lorenz est un cas typique de système chaotique intéressant: il modélise une réalité (bien que simpliste) et on connaît le modèle. On peut alors évaluer les approches d'apprentissage machine quant à la prédiction d'un système chaotique. Si ces approches s'avèrent utiles avec Lorenz, pourquoi ne pas les utiliser avec d'autres modèles? 
 
-# TODO: À finir: expliquer les approches utilisées (RC, RNN, RIMs)
-# TODO: Est-ce que le texte est bon? Choses à changer?
 
 [^1]: E. N. Lorenz, « Deterministic Nonperiodic Flow », en, Journal of the Atmospheric Sciences 20, 130-141 (1963).
