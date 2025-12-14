@@ -129,7 +129,7 @@ def normalisation(data: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch
         std: écart-type par feature
     """
     mean = data.mean(dim=(0, 1), keepdim=True)
-    std = data.std(dim=(0, 1), keepdim=True) + 1e-8  # éviter division par zéro
+    std = data.std(dim=(0, 1), keepdim=True)
     normalized_data = (data - mean) / std
     return normalized_data, mean.squeeze(), std.squeeze()
 

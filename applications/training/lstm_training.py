@@ -18,11 +18,11 @@ if __name__ == "__main__":
 
     # Hyperparamètres
     learning_rate = 0.001
-    nb_epochs = 300
-    batch_size = 64
-    sequence_length = 3
-    hidden_size = 128
-    num_layers = 2
+    nb_epochs = 1000
+    batch_size = 128
+    sequence_length = 1
+    hidden_size = 32
+    num_layers = 1
 
     save_name = f"lstm_lr{learning_rate}_epochs{nb_epochs}_L{sequence_length}_H{hidden_size}"
 
@@ -30,7 +30,7 @@ if __name__ == "__main__":
         edo=Lorenz,
         initial_conditions=[1.0, 0.0, 0.0],
         noise_level=0.0,
-        dt=0.01,
+        dt=0.02,
         sigma=10,
         rho=28,
         beta=8/3
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     dataset = EdoDataset(
         edo_data=data_generator,
         t_min=0.0,
-        t_max=100.0,
+        t_max=120.0,
         sequence_length=sequence_length,
         stride=1,
         normalize=True
@@ -70,10 +70,10 @@ if __name__ == "__main__":
     print(f"Model sauvegarder : {save_path}{save_name}_model.pth")
 
     plt.figure(figsize=(10, 6))
-    plt.plot(train_losses, label="Train Loss", linewidth=2)
-    plt.plot(val_losses, label="Validation Loss", linewidth=2)
+    plt.plot(np.log10(train_losses), label="Train Loss", linewidth=2)
+    plt.plot(np.log10(val_losses), label="Validation Loss", linewidth=2)
     plt.xlabel("Epoch")
-    plt.ylabel("MSE Loss")
+    plt.ylabel("log(MSE Loss)")
     plt.legend()
     plt.title("LSTM Training Loss (MSE)")
     plt.grid(True, alpha=0.3)
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     print(f"Prediction RMSE: {rmse:.6f}")
 
     # Visulalisation des résidus
-    residus = (preds - x_test)*100 / x_test 
+    residus = (preds - x_test)*100 / x_test
     fig, axes = plt.subplots(3, 1, figsize=(12, 9))
     for i, (ax, dim) in enumerate(zip(axes, dims)):
         ax.plot(residus[:n_plot, i], label='Residuals', color='orange', linewidth=1.5, alpha=0.7)
