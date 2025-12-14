@@ -1,4 +1,3 @@
-"""Simplified LSTM training on a single Lorenz trajectory with sliding windows."""
 import os
 import torch
 import numpy as np
