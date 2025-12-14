@@ -5,7 +5,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from matplotlib import pyplot as plt
 from src.EDOs import Lorenz
-from src.edo_data_structures import EdoData, EdoDataset
+from src.edo_data_structures import EdoData, EdoDataset, normalisation, denormalisation
 from src.models.lstm import LSTM
 
 
@@ -17,10 +17,10 @@ if __name__ == "__main__":
     print(f"Device: {device}")
 
     # Hyperparamètres
-    learning_rate = 0.0001
-    nb_epochs = 2000
+    learning_rate = 0.001
+    nb_epochs = 300
     batch_size = 64
-    sequence_length = 100
+    sequence_length = 3
     hidden_size = 128
     num_layers = 2
 
@@ -30,7 +30,7 @@ if __name__ == "__main__":
         edo=Lorenz,
         initial_conditions=[1.0, 0.0, 0.0],
         noise_level=0.0,
-        dt=0.02,
+        dt=0.01,
         sigma=10,
         rho=28,
         beta=8/3
@@ -39,9 +39,10 @@ if __name__ == "__main__":
     dataset = EdoDataset(
         edo_data=data_generator,
         t_min=0.0,
-        t_max=120.0,
+        t_max=100.0,
         sequence_length=sequence_length,
-        stride=1
+        stride=1,
+        normalize=True
     )
 
     # Split train/val sur les fenêtres
@@ -66,6 +67,7 @@ if __name__ == "__main__":
     save_path = "results/training/lstm/"
     os.makedirs(save_path, exist_ok=True)
     model.save(f"{save_path}{save_name}_model.pth")
+    print(f"Model sauvegarder : {save_path}{save_name}_model.pth")
 
     plt.figure(figsize=(10, 6))
     plt.plot(train_losses, label="Train Loss", linewidth=2)
@@ -73,18 +75,36 @@ if __name__ == "__main__":
     plt.xlabel("Epoch")
     plt.ylabel("MSE Loss")
     plt.legend()
-    plt.title("LSTM Training (single trajectory) Loss")
+    plt.title("LSTM Training Loss (MSE)")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.savefig(f"{save_path}{save_name}_loss_curve.png", dpi=150)
     plt.close()
 
     # Évaluation autonome sur la suite de la trajectoire
-    raw = data_generator.evaluate(0.0, 120.0)[0].cpu().numpy()  # (T, 3)
+    raw = data_generator.evaluate(0.0, 100.0)[0].cpu()  # (T, 3)
     split_idx = int(0.8 * len(raw))
-    x_test = raw[split_idx:]
-    start = raw[split_idx - 1]
-    preds = model.predict(start, len(x_test))
+    
+    # Utiliser les paramètres de normalisation du dataset d'entraînement
+    if hasattr(dataset, 'mean') and hasattr(dataset, 'std'):
+        mean, std = dataset.mean, dataset.std
+        raw_normalized = (raw - mean) / std
+    else:
+        mean, std = None, None
+        raw_normalized = raw
+    
+    x_test = raw_normalized[split_idx:]
+    # Utiliser une séquence initiale de longueur sequence_length
+    start_sequence = raw_normalized[split_idx - sequence_length:split_idx]
+    preds = model.predict(start_sequence.numpy(), len(x_test))
+
+    # Dénormaliser pour obtenir les vraies valeurs
+    if mean is not None and std is not None:
+        x_test = denormalisation(torch.tensor(x_test), mean, std).numpy()
+        preds = denormalisation(torch.tensor(preds), mean, std).numpy()
+    else:
+        x_test = x_test.numpy()
+        preds = preds.astype(np.float32)
 
     # Visualisation des prédictions
     rmse = np.sqrt(np.mean((preds - x_test) ** 2))
@@ -103,5 +123,20 @@ if __name__ == "__main__":
         ax.set_title(f'{dim} - RMSE: {rmse_dim[i]:.6f}')
     plt.tight_layout()
     plt.savefig(f"{save_path}{save_name}_predictions.png", dpi=150)
+    plt.close()
+    print(f"Prediction RMSE: {rmse:.6f}")
+
+    # Visulalisation des résidus
+    residus = (preds - x_test)*100 / x_test 
+    fig, axes = plt.subplots(3, 1, figsize=(12, 9))
+    for i, (ax, dim) in enumerate(zip(axes, dims)):
+        ax.plot(residus[:n_plot, i], label='Residuals', color='orange', linewidth=1.5, alpha=0.7)
+        ax.set_ylabel(dim)
+        ax.set_xlabel('Steps')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        ax.set_title(f'{dim} - Residuals [%]')
+    plt.tight_layout()
+    plt.savefig(f"{save_path}{save_name}_residuals.png", dpi=150)
     plt.close()
     

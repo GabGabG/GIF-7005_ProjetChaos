@@ -66,13 +66,16 @@ class EdoDataset(Dataset):
             t_min: float,
             t_max: float,
             sequence_length: int = 50,
-            stride: int = 1
+            stride: int = 1,
+            normalize: bool = False
         ):
         self.sequence_length = sequence_length
         self.stride = stride
 
         # Génération de la trajectoire
         self.raw_data = edo_data.evaluate(t_min, t_max)  # (1, T, F)
+        if normalize:
+            self.raw_data, self.mean, self.std = normalisation(self.raw_data)
 
         # Construction des fenêtres
         self.data = self._create_sequences()
@@ -103,3 +106,41 @@ class EdoDataset(Dataset):
         """
         window = self.data[idx]
         return window[:-1, :], window[-1, :]
+    
+    def denormalize(self, normalized_data: torch.Tensor) -> torch.Tensor:
+        """Dénormalise les données en utilisant la moyenne et l'écart-type stockés.
+
+        Args:
+            normalized_data: Tensor de shape (N, L, F) ou (T, F)
+        Returns:
+            données dénormalisées
+        """
+        if hasattr(self, 'mean') and hasattr(self, 'std'):
+            return denormalisation(normalized_data, self.mean, self.std)
+
+def normalisation(data: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Normalise les données par feature (moyenne 0, écart-type 1).
+
+    Args:
+        data: Tensor de shape (N, L, F) ou (T, F)
+    Returns:
+        normalized_data: données normalisées
+        mean: moyenne par feature
+        std: écart-type par feature
+    """
+    mean = data.mean(dim=(0, 1), keepdim=True)
+    std = data.std(dim=(0, 1), keepdim=True) + 1e-8  # éviter division par zéro
+    normalized_data = (data - mean) / std
+    return normalized_data, mean.squeeze(), std.squeeze()
+
+def denormalisation(normalized_data: torch.Tensor, mean: torch.Tensor, std: torch.Tensor) -> torch.Tensor:
+    """Inverse la normalisation des données.
+
+    Args:
+        normalized_data: Tensor de shape (N, L, F) ou (T, F)
+        mean: moyenne par feature
+        std: écart-type par feature
+    Returns:
+        données dénormalisées
+    """
+    return normalized_data * std + mean
