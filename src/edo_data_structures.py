@@ -1,13 +1,13 @@
 import numpy as np
 import torch
-import copy
 from torch.utils.data import Dataset
 from src.EDOs import EDO
 from typing import Iterable, Dict
 
 
 class EdoData():
-    """Générateur de données basé sur UNE seule trajectoire d'une EDO.
+    """
+    Générateur de données basé sur la trajectoire d'une EDO.
 
     Simplifie la génération: on produit une unique série temporelle continue
     (ex. Lorenz) sur l'intervalle [t_min, t_max] avec pas `dt` et on l'utilise
@@ -27,7 +27,7 @@ class EdoData():
             edo (EDO): Instance de la classe EDO représentant l'équation différentielle.
             initial_conditions (Iterable[float]): Conditions initiales pour l'EDO.
             noise_level (float): Niveau de bruit à ajouter aux données générées.
-            dt (float): Pas de temps pour la simulation.
+            dt (float): Pas de temps pour la l'évaluation de l'EDO.
             **params: Paramètres spécifiques à l'EDO.
         """
         self.edo = edo
@@ -37,7 +37,8 @@ class EdoData():
         self.dt = dt
 
     def evaluate(self, t_min: float, t_max: float) -> torch.Tensor:
-        """Génère et retourne UNE trajectoire au format (1, T, F).
+        """
+        Génère et retourne une trajectoire.
 
         Args:
             t_min: début de l'intervalle temporel
@@ -48,16 +49,17 @@ class EdoData():
         T = int((t_max - t_min) / self.dt)
         edo = self.edo(self.init_conditions.numpy(), **self.params)
         edo.resoudre_EDO(t_min, t_max, nombre_t=T)
-        trajectory = torch.tensor(edo.x_points.T, dtype=torch.float32)  # (T, F)
+        trajectory = torch.tensor(edo.x_points.T, dtype=torch.float32)
         if self.noise > 0.0:
             trajectory = trajectory + torch.randn_like(trajectory) * self.noise
         return trajectory.unsqueeze(0)
 
 
 class EdoDataset(Dataset):
-    """Dataset PyTorch basé sur une trajectoire, avec fenêtres glissantes.
+    """
+    Dataset PyTorch basé sur une trajectoire, avec fenêtres glissantes.
 
-    - Construit des fenêtres de longueur L+1 pour entraînement next-step:
+    Construit des fenêtres de longueur L+1 pour entraînement next-step:
         inputs = L premières valeurs, target = valeur suivante.
     """
     def __init__(
@@ -65,14 +67,25 @@ class EdoDataset(Dataset):
             edo_data: EdoData,
             t_min: float,
             t_max: float,
-            sequence_length: int = 50,
+            sequence_length: int = 5,
             stride: int = 1,
             normalize: bool = False
         ):
+        """
+        Initialise le dataset en générant la trajectoire et en construisant les fenêtres.
+
+        Args:
+            edo_data: instance de EdoData pour générer la trajectoire
+            t_min: début de l'intervalle temporel pour la génération
+            t_max: fin de l'intervalle temporel pour la génération
+            sequence_length: longueur L des séquences d'entrée
+            stride: pas entre le début des fenêtres successives
+            normalize: si True, normalise les données (moyenne 0, écart-type 1)
+        """
         self.sequence_length = sequence_length
         self.stride = stride
 
-        # Génération de la trajectoire
+        # Génération de la trajectoire selon le générateur de l'EDO fournie
         self.raw_data = edo_data.evaluate(t_min, t_max)  # (1, T, F)
         if normalize:
             self.raw_data, self.mean, self.std = normalisation(self.raw_data)
@@ -81,10 +94,11 @@ class EdoDataset(Dataset):
         self.data = self._create_sequences()
 
     def _create_sequences(self) -> torch.Tensor:
-        """Crée des fenêtres glissantes de longueur L+1 pour next-step.
+        """
+        Crée des fenêtres glissantes de longueur L+1 pour next-step.
 
-        Retourne un tenseur de shape (N, L+1, F). Le `__getitem__` découpe
-        ensuite en `(inputs=L, F)` et `target=(F,)`.
+        Returns:
+            Tensor de shape (N, L+1, F).
         """
         L = self.sequence_length
         sequences = []
@@ -99,16 +113,17 @@ class EdoDataset(Dataset):
         return self.data.shape[0]
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
-        """Retourne (inputs, target) pour next-step.
-
-        - inputs: (L, F) → les L premières valeurs de la fenêtre
-        - target: (F,)   → la valeur immédiatement suivante (pas L+1)
+        """
+        Returns:
+            - inputs: (L, F) = les L premières valeurs de la fenêtre
+            - target: (F,) = la valeur immédiatement suivante (pas L+1)
         """
         window = self.data[idx]
         return window[:-1, :], window[-1, :]
     
     def denormalize(self, normalized_data: torch.Tensor) -> torch.Tensor:
-        """Dénormalise les données en utilisant la moyenne et l'écart-type stockés.
+        """
+        Dénormalise les données en utilisant la moyenne et l'écart-type stockés.
 
         Args:
             normalized_data: Tensor de shape (N, L, F) ou (T, F)
@@ -118,8 +133,10 @@ class EdoDataset(Dataset):
         if hasattr(self, 'mean') and hasattr(self, 'std'):
             return denormalisation(normalized_data, self.mean, self.std)
 
+
 def normalisation(data: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Normalise les données par feature (moyenne 0, écart-type 1).
+    """
+    Normalise les données par feature (moyenne 0, écart-type 1).
 
     Args:
         data: Tensor de shape (N, L, F) ou (T, F)
@@ -134,7 +151,8 @@ def normalisation(data: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch
     return normalized_data, mean.squeeze(), std.squeeze()
 
 def denormalisation(normalized_data: torch.Tensor, mean: torch.Tensor, std: torch.Tensor) -> torch.Tensor:
-    """Inverse la normalisation des données.
+    """
+    Inverse la normalisation des données.
 
     Args:
         normalized_data: Tensor de shape (N, L, F) ou (T, F)
