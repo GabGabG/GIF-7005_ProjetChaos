@@ -39,14 +39,14 @@ if __name__ == "__main__":
     dataset = EdoDataset(
         edo_data=data_generator,
         t_min=0.0,
-        t_max=120.0,
+        t_max=100.0,
         sequence_length=sequence_length,
         stride=1,
         normalize=True
     )
 
     # Split train/val sur les fenêtres
-    train_size = int(0.8 * len(dataset))
+    train_size = 4000
     val_size = len(dataset) - train_size
     train_data, val_data = torch.utils.data.random_split(dataset, [train_size, val_size])
 
@@ -79,11 +79,11 @@ if __name__ == "__main__":
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.savefig(f"{save_path}{save_name}_loss_curve.png", dpi=150)
-    plt.close()
+    plt.show()
 
     # Évaluation autonome sur la suite de la trajectoire
-    raw = data_generator.evaluate(0.0, 100.0)[0].cpu()  # (T, 3)
-    split_idx = int(0.8 * len(raw))
+    raw = data_generator.evaluate(0.0, 120.0)[0].cpu()  # (T, 3)
+    split_idx = 5000
     
     # Utiliser les paramètres de normalisation du dataset d'entraînement
     if hasattr(dataset, 'mean') and hasattr(dataset, 'std'):
@@ -123,7 +123,7 @@ if __name__ == "__main__":
         ax.set_title(f'{dim} - RMSE: {rmse_dim[i]:.6f}')
     plt.tight_layout()
     plt.savefig(f"{save_path}{save_name}_predictions.png", dpi=150)
-    plt.close()
+    plt.show()
     print(f"Prediction RMSE: {rmse:.6f}")
 
     # Visulalisation des résidus
@@ -138,5 +138,5 @@ if __name__ == "__main__":
         ax.set_title(f'{dim} - Residuals [%]')
     plt.tight_layout()
     plt.savefig(f"{save_path}{save_name}_residuals.png", dpi=150)
-    plt.close()
+    plt.show()
     
